@@ -117,16 +117,16 @@ class ThesisSession:
                     #add this object to the list of document objects
                     self.documents.append(abstract)
                     flags.update(year = abstract.coverDate[:4])
-                    self.citation_graph.add_node(abstract.eid, flags)
+                    self.citation_graph.add_node(abstract.eid, attr=flags)
                     if report == True:
                         #print out document data, if directed to do so
                         print(abstract)
                     if abstract.authors is not None:
-                        self.authorship_graph.add_node(publication.eid, bipartite = 0)
+                        self.authorship_graph.add_node(abstract.eid, bipartite = 0)
                         #add edges to the authorship network
                         for author in abstract.authors:
                             self.authorship_graph.add_node(author.auid, bipartite = 1, name = author.indexed_name)
-                            self.authorship_graph.add_edge(publication.eid, author.auid)
+                            self.authorship_graph.add_edge(abstract.eid, author.auid)
                     pull_references(abstract)
 
                                 
@@ -184,7 +184,7 @@ class ThesisSession:
         self.target_depth = target_depth if target_depth else self.target_depth            
             
         for index, eid in enumerate(eidlist):
-            self.add_document(eid, report = False, flags)
+            self.add_document(eid, report=False, flags=flags)
             self.show_progress(index+1,len(eidlist))           
        
     def save_checkpoint(self, key=None):
@@ -194,11 +194,11 @@ class ThesisSession:
         if key is None:
             key = str(currentdatetime)
         
-        save_content = dict([
-            ('documents' = self.documents), 
-            ('authorship' = self.authorship_graph), 
-            ('citations' = self.citation_graph)
-            ])
+        save_content = dict(
+            documents = self.documents, 
+            authorship = self.authorship_graph, 
+            citations = self.citation_graph
+            )
         filepath = './archive/session'+key+'.pickle'
         pickle.dump(save_content, open(filepath, 'wb'))
         
@@ -226,7 +226,7 @@ class ThesisSession:
                         subjects.append(area)
             
             subjects = pd.DataFrame(subjects)
-            subjects = areas.value_counts().groupby(['area','abbreviation','code']).sum()
+            subjects = subjects.value_counts().groupby(['area','abbreviation','code']).sum()
             subjects.sort_values(ascending=False, inplace=True)
             
         return pd.DataFrame(subjects)
@@ -283,7 +283,7 @@ class ThesisSession:
         returns a dataframe with certain information about the   
         documents that have been pulled.'''
         
-        keep_cols = ('eid','title', 'publicationName', 'date', 'cited_by_count', 'doi', 'authkeywords', 'subject_areas', 'abstract', 'scopus_link']
+        keep_cols = ['eid','title', 'publicationName', 'date', 'cited_by_count', 'doi', 'authkeywords', 'subject_areas', 'abstract', 'scopus_link']
         
         #go through self.documents and pull out important fields
         for doc in self.documents:
@@ -295,7 +295,7 @@ class ThesisSession:
                     doc.citedby_count,
                     doc.doi,
                     doc.authkeywords,
-                    doc.subject_areas
+                    doc.subject_areas,
                     doc.abstract,
                     doc.scopus_link
                    ])        
@@ -332,7 +332,7 @@ class ThesisSession:
         '''NOT IMPLEMENTED:
         checks for nodes with high indegree that haven't been pulled.'''
         
-        if !threshold:
+        if threshold==Flase:
             #calculate a reasonable threshold
             threshold = 10
         
