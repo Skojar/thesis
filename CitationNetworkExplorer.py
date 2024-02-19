@@ -16,7 +16,7 @@ class CitationNetworkExplorer:
     '''
 
     CHECKPOINT_DIR = Path("./CiteNetXCheckpoints/")
-    CHECKPOINT_FILENAME_BASE = "CiteNetXCheckpoints"
+    CHECKPOINT_FILENAME_BASE = "checkpoint"
     
     def __init__(self, documents = []):
         self.documents = documents
@@ -82,7 +82,8 @@ class CitationNetworkExplorer:
         available.
         report: If True, will print() the document pulled. Defaults to False
         flags: a dictionary of attributes to automatically append to the citation graph node.
-        If the eid has already been successfully pulled, it will not be pulled again, but depth will be checked to see if its references need to be pulled.
+        If the eid has already been successfully pulled, it will not be pulled again, but depth will be checked 
+           to see if its references need to be pulled.
         As part of a successful pull, 
             1) the abstract is added to the instance's documents property, 
             2) a node is added to the citation graph with any specidifed atttributes and its year of publication,
@@ -323,7 +324,8 @@ class CitationNetworkExplorer:
         return selected
 
     def distance_from_initial_sample(self, node_id):
-        '''Given a node id, returns an integer with the length of the geodesic between that node id and the closest node that is part of the initial sample.'''
+        '''Given a node id, returns an integer with the length of the geodesic between that node id and 
+        the closest node that is part of the initial sample.'''
         initial_node_ids = self.get_nodes_with_attribute(self.citation_graph, 'initial', True)
         undirected_view = self.citation_graph.to_undirected(as_view=True)
         distance = nx.diameter(undirected_view)
