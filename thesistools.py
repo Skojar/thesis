@@ -2,28 +2,21 @@ import pandas as pd
 from pybliometrics.scopus import AbstractRetrieval, AuthorRetrieval
 import networkx as nx
 import pickle
-import matplotlib.pyplot as plt
 import traceback
 from datetime import datetime
-from collections import Counter
+from pathlib import Path
 
+#from collections import Counter
+#import matplotlib.pyplot as plt
+   
+class CitationNetworkExplorer:
+    '''
+    Pulls data from the Scopus database and manages the data pulled.
+    It also generates NetworkX graphs and some pandas dataframes.
+    '''
 
-def quickpickle(obj, filepath):
-    '''straightforward wrapper for pickle.dump'''
-    pickle.dump(obj, open(filepath, 'wb'))
-
-def quickunpickle(filepath):
-    '''wrapper for pickle.load'''
-    with open(filepath,'rb') as f:
-        obj = pickle.load(f)
-    return obj
-    
-class ThesisSession:
-    '''this class is a container for code used by
-    Michael Rebstock while compiling data for his 
-    Master's Thesis.  It pulls data from the Scopus
-    database and generates NetworkX graphs and some 
-    pandas dataframes.'''
+    CHECKPOINT_DIR = "./CiteNetXCheckpoints"
+    CHECKPOINT_FILENAME = "/CiteNetXCheckpoints"
     
     def __init__(self, documents = []):
         self.documents = documents
@@ -44,24 +37,24 @@ class ThesisSession:
             f'Current target depth = {self.target_depth}.'
         )
                   
-    def show_progress(self, place, end):
-        '''this tells the user how much of a process is complete.'''
+    def _show_progress(self, place, end):
+        '''Tells the user how much of a process is complete.'''
         progress = place/end*100
         print(f"Progress: {progress: .2f}%", end="\r")
       
-    def eid_from_id(self, thisid):
-        '''scopus uses an id and an eid.  the eid is the id with a prefix added.
-        this function simply appends said prefix to a provided id'''
+    def _eid_from_id(self, thisid):
+        '''Scopus uses both an id and an eid.  The eid is the id with a prefix added.
+        This function simply appends said prefix to a provided id and returns the eid.'''
         eid_prefix = '2-s2.0-' 
         return eid_prefix+thisid
     
-    def add_citation(self, cited_by, reference):
-        '''both args these are Elsevier EIDs'''
-        self.citation_graph.add_edge(cited_by, reference)
+    #def add_citation(self, cited_by, reference):
+    #    '''both args these are Elsevier EIDs'''
+    #    self.citation_graph.add_edge(cited_by, reference)
         
     def is_repeat(self,eid):
-        '''checks if an eid has already been pulled in order to 
-        prevent them from being pulled again.'''
+        '''Checks if an eid has already been pulled in order to prevent it from being pulled again.
+        Returns True/False and the pybliometrics abstract (or None).'''
         answer = False
         match = None
         
@@ -73,7 +66,7 @@ class ThesisSession:
         return answer, match
         
     def has_documents(self):
-        '''returns True if any documents have been successfully pulled.'''
+        '''Returns True if any documents have been successfully pulled.'''
         answer = True
         
         if len(self.documents)==0:
@@ -83,18 +76,28 @@ class ThesisSession:
         return answer
 
     def pull_abstract(self, eid, depth, report = False, flags={}):
-        '''this function does the heavy lifting, using the pybliometircs
-        AbstractRetrieval Class to pull data about a document identified 
-        by its eid.  If depth is less than the target depth (default 0),
-        then it will also pull data about that document's references, if
-        available.'''
+        '''
+        Uses the pybliometircs AbstractRetrieval Class to pull data about a document identified by its eid.  
+        If depth is less than the target depth (default 0), then it will also pull data about that document's references, if
+        available.
+        report: If True, will print() the document pulled. Defaults to False
+        flags: a dictionary of attributes to automatically append to the citation graph node.
+        If the eid has already been successfully pulled, it will not be pulled again, but depth will be checked to see if its references need to be pulled.
+        As part of a successful pull, 
+            1) the abstract is added to the instance's documents property, 
+            2) a node is added to the citation graph with any specidifed atttributes and its year of publication,
+            3) an edge is added to the citation graph between the abstract and each of its references  
+                (This automatically creates a node for the reference.)
+            4) an edge is added to the authorship graph between the abstract and each of its authors.
+            
+        '''
         min_indegree_to_pull = 3
         
         def pull_references(abstract):
             if abstract.references is not None:
                 #add edges to the citation network.
                 for reference in abstract.references:
-                    reference_eid = self.eid_from_id(reference.id)
+                    reference_eid = self._eid_from_id(reference.id)
                     
                     self.citation_graph.add_edge(abstract.eid, reference_eid)
                     #we don't yet know anything about the reference beyond its id.  
@@ -140,7 +143,7 @@ class ThesisSession:
             pull_references(match)
     
     def pull_author(self, auid, flags={}):
-        '''given an auid, pulls all of the publications of that author'''
+        '''Given an auid, pulls all of the publications of that author'''
         
         try:
             author = AuthorRetrieval(auid, view='LIGHT')
@@ -159,10 +162,10 @@ class ThesisSession:
         
         for index, auid in enumerate(auidlist):
             self.pull_author(auid, flags)
-            self.show_progress(index+1,len(auidlist))       
+            self._show_progress(index+1,len(auidlist))       
     
     def compile_graphs(self, filepath, target_depth = False, flags={}):
-        '''takes a file with a list of eids and a specified depth, and 
+        '''Takes a file with a list of eids and a specified depth, and 
         populates the object's properties.'''
         
         with open(filepath, 'r') as f:
@@ -171,9 +174,7 @@ class ThesisSession:
         self.add_documents(outlist,target_depth, flags)
         
     def add_document(self, eid, report = True, flags={}):
-        '''given an eid, pulls data about that document and adds it
-        to the object's properties.  Basically a single-item version
-        of compile_graphs()'''
+        '''Given an eid, pulls data about that document and adds it to the object's properties.'''
         self.pull_abstract(eid, 0, report, flags) #depth starts at zero
         
     def add_documents(self, eidlist, target_depth = False, flags={}):
@@ -185,12 +186,15 @@ class ThesisSession:
             
         for index, eid in enumerate(eidlist):
             self.add_document(eid, report=False, flags=flags)
-            self.show_progress(index+1,len(eidlist))           
+            self._show_progress(index+1,len(eidlist))           
        
     def save_checkpoint(self, key=None):
-        '''pickles the accumulated data from a session.'''
+        '''Pickles the accumulated data from an instance.  
+        If a key is provided, it is used in the filename.  Otherwise, the filename included a timestamp.'''
+        # Create the directory if necessary
+        Path(CHECKPOINT_DIR).mkdir(parents=True, exist_ok=True)
         
-        currentdatetime = datetime.now().strftime("%y%m%d-$H%M%S")
+        currentdatetime = datetime.now().strftime("%Y%m%d.%H%M")
         if key is None:
             key = str(currentdatetime)
         
@@ -199,24 +203,28 @@ class ThesisSession:
             authorship = self.authorship_graph, 
             citations = self.citation_graph
             )
-        filepath = './archive/session'+key+'.pickle'
+        filepath = CHECKPOINT_DIR+CHECKPOINT_FILENAME+key+'.pickle'
         pickle.dump(save_content, open(filepath, 'wb'))
         
     def load_checkpoint(self, key=None):
+        '''Restores the properties from a saved checkpoint, given the appropriate key.'''
         if key is None:
             print('key or needed to load checkpoint!')
         else:
-            filepath = './archive/session'+key+'.pickle'
-            with open(filepath,'rb') as f:
-                content = pickle.load(f)
-            
-            self.documents = content['documents']
-            self.authorship_graph = content['authorship']
-            self.citation_graph = content['citations']
+            filepath = CHECKPOINT_DIR+CHECKPOINT_FILENAME+key+'.pickle'
+            try:
+                with open(filepath,'rb') as f:
+                    content = pickle.load(f)
+                
+                self.documents = content['documents']
+                self.authorship_graph = content['authorship']
+                self.citation_graph = content['citations']
+            except Exception:
+                print("Failed to load checkpoint with key", key)
+                traceback.print_exc()
         
     def subject_list(self):
-        '''returns a pandas dataframe with information about subject 
-        areas represented in the list of documents'''
+        '''Returns a pandas dataframe with a distribution of subject areas represented in the list of documents'''
         subjects = []
         
         if self.has_documents():
@@ -232,14 +240,12 @@ class ThesisSession:
         return pd.DataFrame(subjects)
         
     def author_list(self):
-        '''returns a pandas dataframe with author information'''
+        '''Returns a pandas dataframe with an author distribution'''
         authors = []
 
         if self.has_documents():        
             for doc in self.documents:
                 if doc.authors is not None:
-#                    for author in doc.authors:
-#                        authors.append(pd.DataFrame(author))
                     authors.append(pd.DataFrame(doc.authors))
                 else:
                     print('No authors found for ',doc.eid)
@@ -250,8 +256,7 @@ class ThesisSession:
         return pd.DataFrame(authors)
         
     def doc_years(self):
-        '''returns the distribution of publication years for the 
-        documents pulled.'''
+        '''Returns a pandas dataframe with the distribution of publication years for the documents pulled.'''
         years = []
         
         if self.has_documents():
@@ -263,7 +268,7 @@ class ThesisSession:
         return years.value_counts().sort_index().reset_index(name='count')
         
     def quotas(self):
-        '''relays the latest quota information'''
+        '''Reports on the most recent quota information.  The Scopus API has weekly limits.'''
         reset_string="Reset Time Unknown"
         quota_string="Pulls Remaining Unknown"
         
@@ -280,7 +285,7 @@ class ThesisSession:
         
     def doc_dataframe(self):
         '''NOT IMPLEMENTED:
-        returns a dataframe with certain information about the   
+        Returns a dataframe with certain information about the   
         documents that have been pulled.'''
         
         keep_cols = ['eid','title', 'publicationName', 'date', 'cited_by_count', 'doi', 'authkeywords', 'subject_areas', 'abstract', 'scopus_link']
@@ -307,8 +312,7 @@ class ThesisSession:
         return df
         
     def get_nodes_with_attribute(self, graph, attribute, value):
-        '''given a graph, and attribute key and a value, returns a list of nodes
-        that have that attribute/value pair.'''
+        '''Given a graph, an attribute key and a value, returns a list of nodes that have that attribute/value pair.'''
         
         selected = []
         for n, d in graph.nodes().items():
@@ -317,8 +321,7 @@ class ThesisSession:
         return selected
 
     def distance_from_initial_sample(self, node_id):
-        '''given a node id, returns an integer with the length of the geodesic 
-        between that node id and the closest node that is part of the initial sample.'''
+        '''Given a node id, returns an integer with the length of the geodesic between that node id and the closest node that is part of the initial sample.'''
         initial_node_ids = self.get_nodes_with_attribute(self.citation_graph, 'initial', True)
         undirected_view = self.citation_graph.to_undirected(as_view=True)
         distance = nx.diameter(undirected_view)
