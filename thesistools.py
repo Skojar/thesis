@@ -15,8 +15,8 @@ class CitationNetworkExplorer:
     It also generates NetworkX graphs and some pandas dataframes.
     '''
 
-    CHECKPOINT_DIR = "./CiteNetXCheckpoints"
-    CHECKPOINT_FILENAME = "/CiteNetXCheckpoints"
+    CHECKPOINT_DIR = Path("./CiteNetXCheckpoints/")
+    CHECKPOINT_FILENAME_BASE = "CiteNetXCheckpoints"
     
     def __init__(self, documents = []):
         self.documents = documents
@@ -192,7 +192,7 @@ class CitationNetworkExplorer:
         '''Pickles the accumulated data from an instance.  
         If a key is provided, it is used in the filename.  Otherwise, the filename included a timestamp.'''
         # Create the directory if necessary
-        Path(CHECKPOINT_DIR).mkdir(parents=True, exist_ok=True)
+        self.CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
         
         currentdatetime = datetime.now().strftime("%Y%m%d.%H%M")
         if key is None:
@@ -203,15 +203,17 @@ class CitationNetworkExplorer:
             authorship = self.authorship_graph, 
             citations = self.citation_graph
             )
-        filepath = CHECKPOINT_DIR+CHECKPOINT_FILENAME+key+'.pickle'
+        filename = f"{self.CHECKPOINT_FILENAME_BASE}{key}.pickle"
+        filepath = self.CHECKPOINT_DIR / filename
         pickle.dump(save_content, open(filepath, 'wb'))
         
     def load_checkpoint(self, key=None):
         '''Restores the properties from a saved checkpoint, given the appropriate key.'''
         if key is None:
-            print('key or needed to load checkpoint!')
+            print('key is needed to load checkpoint!')
         else:
-            filepath = CHECKPOINT_DIR+CHECKPOINT_FILENAME+key+'.pickle'
+            filename = filename = f"{self.CHECKPOINT_FILENAME_BASE}{key}.pickle"
+            filepath = self.CHECKPOINT_DIR / filename
             try:
                 with open(filepath,'rb') as f:
                     content = pickle.load(f)
